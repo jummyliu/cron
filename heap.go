@@ -39,7 +39,7 @@ func New(opts ...Option) Cron {
 		lock:    NewSpinLock(),
 		// lock: &sync.Mutex{},
 		parser: NewParser(ParseOptionStandard),
-		logger: defaultLogger,
+		logger: defaultPrintLogger,
 	}
 	for _, opt := range opts {
 		opt(h)
