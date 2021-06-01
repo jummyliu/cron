@@ -40,7 +40,7 @@ func TestParseIntOrName(t *testing.T) {
 		},
 		{
 			expr:   "wed",
-			names:  dayOnWeek.names,
+			names:  dayOfWeek.names,
 			result: 3,
 		},
 		{
@@ -84,8 +84,8 @@ func TestParseExpr(t *testing.T) {
 	}{
 		{
 			expr:   "*",
-			b:      dayOnWeek,
-			result: 0x7f, // 1111111
+			b:      dayOfWeek,
+			result: 0x7f | starBit, // 1111111
 		},
 		{
 			expr:   "2",
@@ -99,22 +99,22 @@ func TestParseExpr(t *testing.T) {
 		},
 		{
 			expr:   "*/2",
-			b:      dayOnWeek,
+			b:      dayOfWeek,
 			result: 0x55, // 1010101
 		},
 		{
 			expr:   "3/2",
-			b:      dayOnWeek,
+			b:      dayOfWeek,
 			result: 0x28, // 0101000
 		},
 		{
 			expr:   "wed/2",
-			b:      dayOnWeek,
+			b:      dayOfWeek,
 			result: 0x28, // 0101000
 		},
 		{
 			expr:   "3-1",
-			b:      dayOnWeek,
+			b:      dayOfWeek,
 			result: 0,
 			err:    "beyond end of range",
 		},
@@ -126,7 +126,7 @@ func TestParseExpr(t *testing.T) {
 		},
 		{
 			expr:   "0-2",
-			b:      dayOnMonth,
+			b:      dayOfMonth,
 			result: 0,
 			err:    "The effective range is ",
 		},
@@ -184,28 +184,28 @@ func TestGetField(t *testing.T) {
 	}{
 		{
 			field:  "*",
-			b:      dayOnWeek,
-			result: 0x7f, // 1111111
+			b:      dayOfWeek,
+			result: 0x7f | starBit, // 1111111
 		},
 		{
 			field:  "*/2",
-			b:      dayOnWeek,
+			b:      dayOfWeek,
 			result: 0x55, // 1010101
 		},
 		{
 			field:  "1-10",
-			b:      dayOnWeek,
+			b:      dayOfWeek,
 			result: 0,
 			err:    "The effective range is ",
 		},
 		{
 			field:  "sun,mon,wed",
-			b:      dayOnWeek,
+			b:      dayOfWeek,
 			result: 0x0b, // 0001011
 		},
 		{
 			field:  "sun,wed-fri/2",
-			b:      dayOnWeek,
+			b:      dayOfWeek,
 			result: 0x29, // 0101001
 		},
 		{
@@ -278,7 +278,33 @@ func TestParseDescriptor(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
+	parser := NewParser(ParseOptionAll)
+	schedule, err := parser.Parse("0 30 8 3-5 * 0")
+	if err != nil {
+		t.Fatalf("build schedule failure: %s", err)
+	}
+	resultArr := []string{
+		"2021-06-03 08:30:00",
+		"2021-06-04 08:30:00",
+		"2021-06-05 08:30:00",
+		"2021-06-06 08:30:00",
+		"2021-06-13 08:30:00",
+		"2021-06-20 08:30:00",
+		"2021-06-27 08:30:00",
+	}
 
+	ti := time.Date(2021, 6, 1, 12, 0, 0, 0, time.Local)
+	for _, r := range resultArr {
+		next := schedule.Next(ti)
+		result, err := time.ParseInLocation("2006-01-02 15:04:05", r, time.Local)
+		if err != nil {
+			t.Fatalf("parse time err: %s", err)
+		}
+		if !result.Equal(next) {
+			t.Fatalf("schedule.Next(%v) => (%v), but got %v", ti, result, next)
+		}
+		ti = next
+	}
 }
 
 func compareStringSlice(a, b []string) bool {
@@ -293,17 +319,36 @@ func compareStringSlice(a, b []string) bool {
 	return true
 }
 
-func TestDuration(t *testing.T) {
+func TestEverySchedule(t *testing.T) {
 	duration, err := time.ParseDuration("5s60ms")
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
 	t.Log(duration / time.Second * time.Second)
 	t.Log(duration - time.Duration(duration.Nanoseconds())%time.Second)
-	s := &EverySchedule{duration}
-	now := time.Now()
-	t.Log(time.Now())
-	t.Log(s.Next(now))
-	t.Log(s.Next(now.Add(time.Second)))
-	t.Log(s.Next(now.Add(time.Hour)))
+	// s := &EverySchedule{duration}
+	s := Every(duration)
+	resultArr := []string{
+		"2021-06-01 12:00:05",
+		"2021-06-01 12:00:10",
+		"2021-06-01 12:00:15",
+		"2021-06-01 12:00:20",
+		"2021-06-01 12:00:25",
+		"2021-06-01 12:00:30",
+		"2021-06-01 12:00:35",
+		"2021-06-01 12:00:40",
+	}
+
+	ti := time.Date(2021, 6, 1, 12, 0, 0, 0, time.Local)
+	for _, r := range resultArr {
+		next := s.Next(ti)
+		result, err := time.ParseInLocation("2006-01-02 15:04:05", r, time.Local)
+		if err != nil {
+			t.Fatalf("parse time err: %s", err)
+		}
+		if !result.Equal(next) {
+			t.Fatalf("schedule.Next(%v) => (%v), but got %v", ti, result, next)
+		}
+		ti = next
+	}
 }

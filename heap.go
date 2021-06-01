@@ -109,6 +109,11 @@ func (h *Heap) run() {
 	now := time.Now()
 	for _, e := range h.entries {
 		e.Next = e.Schedule.Next(now)
+		if e.RunFirst {
+			go e.Job.Run()
+			e.RunFirst = false
+			e.count++
+		}
 	}
 	// Init min-heap
 	heap.Init(&h.entries)

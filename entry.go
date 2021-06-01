@@ -25,12 +25,21 @@ type Entry struct {
 	Prev     time.Time
 	Times    uint // The max Execute times
 	count    uint // already running count
+	RunFirst bool
 }
 
 type EntryOption func(e *Entry)
 
+// WithEntryMaxExecuteTimes set the max execute times of entry.
 func WithEntryMaxExecuteTimes(times uint) EntryOption {
 	return func(e *Entry) {
 		e.Times = times
+	}
+}
+
+// WithEntryRunFirst run job at first when the cron is running.
+func WithEntryRunFirst() EntryOption {
+	return func(e *Entry) {
+		e.RunFirst = true
 	}
 }

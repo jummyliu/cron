@@ -11,20 +11,24 @@ import (
 type ParseOption int
 
 const (
+	starBit = 1 << 63
+)
+
+const (
 	Second ParseOption = 1 << iota
 	Minute
 	Hour
-	DayOnMonth
+	DayOfMonth
 	Month
-	DayOnWeek
+	DayOfWeek
 	Descriptor
 
-	// ParseOptionAll Second | Minute | Hour | DayOnMonth | Month | DayOnWeek | Descriptor
-	ParseOptionAll = Second | Minute | Hour | DayOnMonth | Month | DayOnWeek | Descriptor
-	// ParseOptionStandard Minute | Hour | DayOnMonth | Month | DayOnWeek | Descriptor
+	// ParseOptionAll Second | Minute | Hour | DayOfMonth | Month | DayOfWeek | Descriptor
+	ParseOptionAll = Second | Minute | Hour | DayOfMonth | Month | DayOfWeek | Descriptor
+	// ParseOptionStandard Minute | Hour | DayOfMonth | Month | DayOfWeek | Descriptor
 	//
 	// Without second.
-	ParseOptionStandard = Minute | Hour | DayOnMonth | Month | DayOnWeek | Descriptor
+	ParseOptionStandard = Minute | Hour | DayOfMonth | Month | DayOfWeek | Descriptor
 )
 
 const (
@@ -43,9 +47,9 @@ var places = []ParseOption{
 	Second,
 	Minute,
 	Hour,
-	DayOnMonth,
+	DayOfMonth,
 	Month,
-	DayOnWeek,
+	DayOfWeek,
 }
 
 // defaults of all fields
@@ -97,9 +101,9 @@ func (p *SpecParser) Parse(spec string) (Schedule, error) {
 		second = fieldWrap(fields[0], seconds)
 		minute = fieldWrap(fields[1], minutes)
 		hour   = fieldWrap(fields[2], hours)
-		dom    = fieldWrap(fields[3], dayOnMonth)
+		dom    = fieldWrap(fields[3], dayOfMonth)
 		month  = fieldWrap(fields[4], months)
-		dow    = fieldWrap(fields[5], dayOnWeek)
+		dow    = fieldWrap(fields[5], dayOfWeek)
 	)
 	if err != nil {
 		return nil, err
@@ -109,9 +113,9 @@ func (p *SpecParser) Parse(spec string) (Schedule, error) {
 		Second:     second,
 		Minute:     minute,
 		Hour:       hour,
-		DayOnMonth: dom,
+		DayOfMonth: dom,
 		Month:      month,
-		DayOnWeek:  dow,
+		DayOfWeek:  dow,
 	}, nil
 }
 
@@ -163,45 +167,45 @@ func parseDescriptor(expr string) (Schedule, error) {
 			Second:     1 << seconds.min,
 			Minute:     1 << minutes.min,
 			Hour:       1 << hours.min,
-			DayOnMonth: 1 << dayOnMonth.min,
+			DayOfMonth: 1 << dayOfMonth.min,
 			Month:      1 << months.min,
-			DayOnWeek:  getBits(dayOnWeek.min, dayOnWeek.max, 1),
+			DayOfWeek:  getBits(dayOfWeek.min, dayOfWeek.max, 1),
 		}, nil
 	case DescriptorMonthly:
 		return &SpecSchedule{
 			Second:     1 << seconds.min,
 			Minute:     1 << minutes.min,
 			Hour:       1 << hours.min,
-			DayOnMonth: 1 << dayOnMonth.min,
+			DayOfMonth: 1 << dayOfMonth.min,
 			Month:      getBits(months.min, months.max, 1),
-			DayOnWeek:  getBits(dayOnWeek.min, dayOnWeek.max, 1),
+			DayOfWeek:  getBits(dayOfWeek.min, dayOfWeek.max, 1),
 		}, nil
 	case DescriptorWeekly:
 		return &SpecSchedule{
 			Second:     1 << seconds.min,
 			Minute:     1 << minutes.min,
 			Hour:       1 << hours.min,
-			DayOnMonth: getBits(dayOnMonth.min, dayOnMonth.max, 1),
+			DayOfMonth: getBits(dayOfMonth.min, dayOfMonth.max, 1),
 			Month:      getBits(months.min, months.max, 1),
-			DayOnWeek:  1 << dayOnWeek.min,
+			DayOfWeek:  1 << dayOfWeek.min,
 		}, nil
 	case DescriptorDaily, DescriptorMidnight:
 		return &SpecSchedule{
 			Second:     1 << seconds.min,
 			Minute:     1 << minutes.min,
 			Hour:       1 << hours.min,
-			DayOnMonth: getBits(dayOnMonth.min, dayOnMonth.max, 1),
+			DayOfMonth: getBits(dayOfMonth.min, dayOfMonth.max, 1),
 			Month:      getBits(months.min, months.max, 1),
-			DayOnWeek:  getBits(dayOnWeek.min, dayOnWeek.max, 1),
+			DayOfWeek:  getBits(dayOfWeek.min, dayOfWeek.max, 1),
 		}, nil
 	case DescriptorHourly:
 		return &SpecSchedule{
 			Second:     1 << seconds.min,
 			Minute:     1 << minutes.min,
 			Hour:       getBits(hours.min, hours.max, 1),
-			DayOnMonth: getBits(dayOnMonth.min, dayOnMonth.max, 1),
+			DayOfMonth: getBits(dayOfMonth.min, dayOfMonth.max, 1),
 			Month:      getBits(months.min, months.max, 1),
-			DayOnWeek:  getBits(dayOnWeek.min, dayOnWeek.max, 1),
+			DayOfWeek:  getBits(dayOfWeek.min, dayOfWeek.max, 1),
 		}, nil
 	}
 	if strings.HasPrefix(expr, DescriptorEveryPrefix) {
@@ -226,9 +230,11 @@ func parseExpr(expr string, b bounds) (uint64, error) {
 		singleDigit    = len(lowToHigh) == 1
 		err            error
 	)
+	var extra uint64
 	if lowToHigh[0] == "*" || lowToHigh[0] == "?" {
 		min = b.min
 		max = b.max
+		extra = starBit
 	} else {
 		min, err = parseIntOrName(lowToHigh[0], b.names)
 		if err != nil {
@@ -258,6 +264,9 @@ func parseExpr(expr string, b bounds) (uint64, error) {
 		if singleDigit {
 			max = b.max
 		}
+		if step > 1 {
+			extra = 0
+		}
 	default:
 		return 0, fmt.Errorf("Too many slashes: %s", expr)
 	}
@@ -270,7 +279,7 @@ func parseExpr(expr string, b bounds) (uint64, error) {
 	if step == 0 {
 		return 0, fmt.Errorf("The step (0) is invalid: %s", expr)
 	}
-	return getBits(min, max, step), nil
+	return getBits(min, max, step) | extra, nil
 }
 
 func getBits(min, max, step uint) uint64 {
@@ -300,7 +309,7 @@ type Schedule interface {
 }
 
 type SpecSchedule struct {
-	Second, Minute, Hour, DayOnMonth, Month, DayOnWeek uint64
+	Second, Minute, Hour, DayOfMonth, Month, DayOfWeek uint64
 }
 
 type bounds struct {
@@ -312,7 +321,7 @@ var (
 	seconds    = bounds{0, 59, nil}
 	minutes    = bounds{0, 59, nil}
 	hours      = bounds{0, 23, nil}
-	dayOnMonth = bounds{1, 31, nil}
+	dayOfMonth = bounds{1, 31, nil}
 	months     = bounds{1, 12, map[string]uint{
 		"jan": 1,
 		"feb": 2,
@@ -327,7 +336,7 @@ var (
 		"nov": 11,
 		"dec": 12,
 	}}
-	dayOnWeek = bounds{0, 6, map[string]uint{
+	dayOfWeek = bounds{0, 6, map[string]uint{
 		"sun": 0,
 		"mon": 1,
 		"tue": 2,
@@ -363,7 +372,7 @@ func (s *SpecSchedule) Next(t time.Time) time.Time {
 		if continued {
 			continue
 		}
-		for !(s.DayOnMonth&(1<<uint64(t.Day())) > 0 && s.DayOnWeek&(1<<uint64(t.Weekday())) > 0) {
+		for !dayMatches(s, t) {
 			if !added {
 				added = true
 				t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
@@ -419,6 +428,18 @@ func (s *SpecSchedule) Next(t time.Time) time.Time {
 		return t
 	}
 	return time.Time{}
+}
+
+// dayMatches
+func dayMatches(s *SpecSchedule, t time.Time) bool {
+	var (
+		domMatch bool = 1<<uint64(t.Day())&s.DayOfMonth > 0
+		dowMatch bool = 1<<uint64(t.Weekday())&s.DayOfWeek > 0
+	)
+	if s.DayOfMonth&starBit > 0 || s.DayOfWeek&starBit > 0 {
+		return domMatch && dowMatch
+	}
+	return domMatch || dowMatch
 }
 
 type EverySchedule struct {
