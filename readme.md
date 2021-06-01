@@ -15,7 +15,7 @@ c := cron.New(cron.WithParser(cron.NewParser(cron.ParseOptionAll)))
 
 - Limit job execution times.
 ```go
-c.AddFunc("* * * * *", func() {
+c.AddFunc("0 * * * * *", func() {
 	fmt.Println("Every minite, and the max execute times is 2.")
 }, cron.WithEntryMaxExecuteTimes(2))
 ```
@@ -23,7 +23,7 @@ c.AddFunc("* * * * *", func() {
 - Run job at first when the cron is running.
 ```go
 c.AddFunc(
-	"0 0 1 1 *",
+	"0 0 0 1 1 *",
 	func() { fmt.Println("Run first at cron is running.")},
 	cron.WithEntryRunFirst(),
 )
