@@ -151,7 +151,7 @@ func (h *Heap) run() {
 				}
 				now = time.Now()
 				// run job from heap
-				for len(h.entries) > 0{
+				for len(h.entries) > 0 {
 					entry := h.entries[0]
 					if entry.Next.After(now) || entry.Next.IsZero() {
 						break
@@ -159,7 +159,7 @@ func (h *Heap) run() {
 					entry = heap.Pop(&h.entries).(*Entry)
 					go entry.Job.Run()
 					entry.count++
-					if entry.Times != 0 && entry.count >= entry.Times{
+					if entry.Times != 0 && entry.count >= entry.Times {
 						continue
 					}
 					entry.Prev = entry.Next
@@ -208,6 +208,8 @@ func (h *Heap) removeEntry(id int) {
 	for i, e := range h.entries {
 		if e.ID == id {
 			heap.Remove(&h.entries, i)
+			// 循环里，只能删除一次，删除多了会导致 panic，命中了就删
+			return
 		}
 	}
 }
